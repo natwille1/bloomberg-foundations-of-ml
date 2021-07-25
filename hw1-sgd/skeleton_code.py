@@ -25,6 +25,14 @@ def feature_normalization(train, test):
 
     """
     # TODO
+    # remove columns with constant values
+    remindx = np.where(np.max(train,axis=0)==np.min(train,axis=0))
+    trainrel = np.delete(X,remindx,axis=1)
+    min, max = np.min(trainrel, axis=0), np.max(trainrel, axis=0)
+    # rescale the datasets
+    train_norm = (trainrel-min)/(max-min)
+    test_norm = (test-min)/(max-min)
+    return train_norm, test_norm
 
 
 ########################################
@@ -44,7 +52,9 @@ def compute_square_loss(X, y, theta):
     """
     loss = 0 #initialize the square_loss
     #TODO
-
+    preds = X@theta
+    loss = np.sum((preds-y)**2)/X.shape[0]
+    return loss
 
 
 ########################################
