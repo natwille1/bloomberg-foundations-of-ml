@@ -270,7 +270,11 @@ def main():
     X_test = np.hstack((X_test, np.ones((X_test.shape[0], 1)))) # Add bias term
 
     # TODO
-    theta_hist, loss_hist = batch_grad_descent(X_train, y_train, num_iter=1000)
+    # theta = np.zeros(X_train.shape[1])
+    # print(theta)
+    # gradcheck = grad_checker(X_train, y_train, theta)
+    # print(gradcheck)
+    theta_hist, loss_hist = batch_grad_descent(X_train, y_train, num_iter=1000, check_gradient=True)
     plt.plot(loss_hist)
     plt.show()
 
