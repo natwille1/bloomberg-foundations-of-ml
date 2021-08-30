@@ -4,6 +4,7 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 # from sklearn.linear_model import LinearRegression
 
 ### Assignment Owner: Tian Wang
@@ -354,6 +355,13 @@ def stochastic_grad_descent(X, y, alpha=0.1, lambda_reg=1, num_iter=1000):
     theta_hist = np.zeros((num_iter, num_instances, num_features))  #Initialize theta_hist
     loss_hist = np.zeros((num_iter, num_instances)) #Initialize loss_hist
     #TODO
+    # shuffle X and y
+    Xs, ys = shuffle(X, y, random_state=10)
+    for i in range(iter):
+        for xs,ys in zip(Xs,ys):
+            
+
+
 
 ################################################
 ### Visualization that compares the convergence speed of batch
