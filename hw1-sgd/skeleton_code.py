@@ -3,7 +3,8 @@ import logging
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
+# from sklearn.linear_model import LinearRegression
 
 ### Assignment Owner: Tian Wang
 
@@ -27,7 +28,7 @@ def feature_normalization(train, test):
     # TODO
     # remove columns with constant values
     remindx = np.where(np.max(train,axis=0)==np.min(train,axis=0))
-    trainrel = np.delete(X,remindx,axis=1)
+    trainrel = np.delete(train,remindx,axis=1)
     min, max = np.min(trainrel, axis=0), np.max(trainrel, axis=0)
     # rescale the datasets
     train_norm = (trainrel-min)/(max-min)
@@ -50,7 +51,6 @@ def compute_square_loss(X, y, theta):
     Returns:
         loss - the square loss, scalar
     """
-    loss = 0 #initialize the square_loss
     #TODO
     preds = X@theta
     loss = np.sum((preds-y)**2)/X.shape[0]
@@ -72,7 +72,12 @@ def compute_square_loss_gradient(X, y, theta):
         grad - gradient vector, 1D numpy array of size (num_features)
     """
     #TODO
-
+    preds = X@theta
+    loss = preds - y
+    # average gradient across all data points
+    grad = 2*(X.T@loss)
+    avg_grad = grad/X.shape[0]
+    return avg_grad
 
 
 ###########################################
@@ -150,15 +155,47 @@ def batch_grad_descent(X, y, alpha=0.1, num_iter=1000, check_gradient=False):
     num_instances, num_features = X.shape[0], X.shape[1]
     theta_hist = np.zeros((num_iter+1, num_features))  #Initialize theta_hist
     loss_hist = np.zeros(num_iter+1) #initialize loss_hist
-    theta = np.zeroes(num_features) #initialize theta
+    theta = np.zeros(num_features) #initialize theta
     #TODO
+    theta_hist[0,:] = theta
+    loss_hist[0] = compute_square_loss(X, y, theta_hist[0, :])
+    for i in range(num_iter):
+        cur_theta = theta_hist[i,:]
+        dtheta = compute_square_loss_gradient(X, y, cur_theta)
+        # update weights
+        theta_hist[i+1,:] = cur_theta - alpha * dtheta
+        # calculate loss with new weights/theta
+        loss_hist[i+1] = compute_square_loss(X, y, theta_hist[i+1, :])
+    return theta_hist, loss_hist
+
 
 ####################################
 ###Q2.4b: Implement backtracking line search in batch_gradient_descent
 ###Check http://en.wikipedia.org/wiki/Backtracking_line_search for details
 #TODO
-
-
+def backtracking_line_search(X, y, num_iter=1000, b=0.4, a=0.5):
+    t=1
+    num_instances, num_features = X.shape[0], X.shape[1]
+    theta_hist = np.zeros((num_iter+1, num_features))  #Initialize theta_hist
+    loss_hist = np.zeros(num_iter+1) #initialize loss_hist
+    stepsize_hist = np.zeros(num_iter+1)
+    theta = np.zeros(num_features) #initialize theta
+    for i in range(num_iter+1):
+        loss = compute_square_loss(X, y, theta)
+        grad = compute_square_loss_gradient(X, y, theta)
+        desc_dir = -grad
+        slope = np.dot(grad, desc_dir)
+        while True:
+            nextloss = compute_square_loss(X, y, theta+t*desc_dir)
+            if nextloss <= (loss+t*a*slope):
+                theta = theta + t * desc_dir
+                theta_hist[i] = theta
+                loss_hist[i] = compute_square_loss(X, y, theta)
+                stepsize_hist[i] = t
+                break
+            else:
+                t *= b
+    return theta_hist, loss_hist, stepsize_hist
 
 ###################################################
 ### Compute the gradient of Regularized Batch Gradient Descent
@@ -176,10 +213,11 @@ def compute_regularized_square_loss_gradient(X, y, theta, lambda_reg):
         grad - gradient vector, 1D numpy array of size (num_features)
     """
     #TODO
+    # ridge_term = (lambda_reg/X.shape[0])*np.sum(theta@theta)
+    grad = compute_square_loss_gradient(X, y, theta) +2*lambda_reg*theta
+    return grad
 
-###################################################
-### Batch Gradient Descent with regularization term
-def regularized_grad_descent(X, y, alpha=0.1, lambda_reg=1, num_iter=1000):
+def batch_grad_descent_train(X_train, y_train, X_test, y_test, alpha=0.1, lambda_reg=1, num_iter=1000):
     """
     Args:
         X - the feature vector, 2D numpy array of size (num_instances, num_features)
@@ -192,16 +230,101 @@ def regularized_grad_descent(X, y, alpha=0.1, lambda_reg=1, num_iter=1000):
         theta_hist - the history of parameter vector, 2D numpy array of size (num_iter+1, num_features)
         loss_hist - the history of loss function without the regularization term, 1D numpy array.
     """
-    (num_instances, num_features) = X.shape
+    (num_instances, num_features) = X_train.shape
     theta = np.zeros(num_features) #Initialize theta
     theta_hist = np.zeros((num_iter+1, num_features))  #Initialize theta_hist
-    loss_hist = np.zeros(num_iter+1) #Initialize loss_hist
+    train_loss_hist = np.zeros(num_iter+1) #Initialize loss_hist
+    test_loss_hist = np.zeros(num_iter+1) #Initialize loss_hist
     #TODO
+    theta_hist[0, :] = theta
+    train_loss_hist[0] = compute_square_loss(X_train, y_train, theta)
+    test_loss_hist[0] = compute_square_loss(X_test, y_test, theta)
+    for i in range(num_iter):
+        cur_theta = theta_hist[i, :]
+        grad = compute_square_loss_gradient(X_train, y_train,cur_theta)
+        theta_hist[i+1,:] = cur_theta - alpha * grad
+        train_loss = compute_square_loss(X_train, y_train, theta_hist[i+1,:])
+        test_loss = compute_square_loss(X_test, y_test, theta_hist[i+1,:])
+        train_loss_hist[i+1] = train_loss
+        test_loss_hist[i+1] = test_loss
+
+    return theta_hist, train_loss_hist, test_loss_hist
+###################################################
+### Batch Gradient Descent with regularization term
+
+def regularized_grad_descent_train(X_train, y_train, X_test, y_test, alpha=0.1, lambda_reg=1, num_iter=1000):
+    """
+    Args:
+        X - the feature vector, 2D numpy array of size (num_instances, num_features)
+        y - the label vector, 1D numpy array of size (num_instances)
+        alpha - step size in gradient descent
+        lambda_reg - the regularization coefficient
+        numIter - number of iterations to run
+
+    Returns:
+        theta_hist - the history of parameter vector, 2D numpy array of size (num_iter+1, num_features)
+        loss_hist - the history of loss function without the regularization term, 1D numpy array.
+    """
+    (num_instances, num_features) = X_train.shape
+    theta = np.zeros(num_features) #Initialize theta
+    theta_hist = np.zeros((num_iter+1, num_features))  #Initialize theta_hist
+    train_loss_hist = np.zeros(num_iter+1) #Initialize loss_hist
+    test_loss_hist = np.zeros(num_iter+1) #Initialize loss_hist
+    #TODO
+    theta_hist[0, :] = theta
+    train_loss = compute_square_loss(X_train, y_train, theta)
+    test_loss = compute_square_loss(X_test, y_test, theta)
+    reg_loss = np.sum(np.square(theta))
+    train_loss_hist[0] = train_loss + lambda_reg * reg_loss
+    test_loss_hist[0] = test_loss + lambda_reg * reg_loss
+    for i in range(num_iter):
+        cur_theta = theta_hist[i, :]
+        grad = compute_regularized_square_loss_gradient(X_train, y_train,cur_theta, lambda_reg)
+        theta_hist[i+1,:] = cur_theta - alpha * grad
+        train_loss = compute_square_loss(X_train, y_train, theta_hist[i+1,:])
+        test_loss = compute_square_loss(X_test, y_test, theta_hist[i+1,:])
+        train_loss_hist[i+1] = train_loss
+        test_loss_hist[i+1] = test_loss
+
+    return theta_hist, train_loss_hist, test_loss_hist
+
+def regularized_grad_descent(X_train, y_train, alpha=0.1, lambda_reg=1, num_iter=1000):
+    """
+    Args:
+        X - the feature vector, 2D numpy array of size (num_instances, num_features)
+        y - the label vector, 1D numpy array of size (num_instances)
+        alpha - step size in gradient descent
+        lambda_reg - the regularization coefficient
+        numIter - number of iterations to run
+
+    Returns:
+        theta_hist - the history of parameter vector, 2D numpy array of size (num_iter+1, num_features)
+        loss_hist - the history of loss function without the regularization term, 1D numpy array.
+    """
+    (num_instances, num_features) = X_train.shape
+    theta = np.zeros(num_features) #Initialize theta
+    theta_hist = np.zeros((num_iter+1, num_features))  #Initialize theta_hist
+    train_loss_hist = np.zeros(num_iter+1) #Initialize loss_hist
+    #TODO
+    theta_hist[0, :] = theta
+    train_loss = compute_square_loss(X_train, y_train, theta)
+    reg_loss = np.sum(np.square(theta))
+    train_loss_hist[0] = train_loss + lambda_reg * reg_loss
+    for i in range(num_iter):
+        cur_theta = theta_hist[i, :]
+        grad = compute_regularized_square_loss_gradient(X_train, y_train,cur_theta, lambda_reg)
+        theta_hist[i+1,:] = cur_theta - alpha * grad
+        train_loss = compute_square_loss(X_train, y_train, theta_hist[i+1,:])
+        train_loss_hist[i+1] = train_loss
+
+    return theta_hist, train_loss_hist
+
 
 #############################################
 ## Visualization of Regularized Batch Gradient Descent
 ##X-axis: log(lambda_reg)
 ##Y-axis: square_loss
+
 
 #############################################
 ### Stochastic Gradient Descent
@@ -255,6 +378,62 @@ def main():
     X_test = np.hstack((X_test, np.ones((X_test.shape[0], 1)))) # Add bias term
 
     # TODO
+    theta_hist, loss_hist, stepsize_hist = backtracking_line_search(X_train, y_train, num_iter=1000)
+    # plt.title("backtracking_line_search")
+    plt.plot(loss_hist, label="backtracking")
+    # plt.show()
+    for i in [0.05, 0.01]:
+        theta_hist, loss_hist = batch_grad_descent(X_train, y_train, num_iter=1000, alpha=i)
+        plt.plot(loss_hist, label=i)
+    plt.legend()
+    plt.show()
+    theta_hist, train_loss, test_loss = batch_grad_descent_train(X_train, y_train, X_test, y_test, alpha=0.01, num_iter=1000)
+    plt.title("no regularization")
+    plt.plot(train_loss, label='train')
+    plt.plot(test_loss, label='test')
+    plt.legend()
+    plt.show()
+    theta_hist, train_loss, test_loss = regularized_grad_descent_train(X_train, y_train, X_test, y_test, alpha=0.01, lambda_reg=0.5, num_iter=1000)
+    plt.title("regularization")
+    plt.plot(train_loss, label='train')
+    plt.plot(test_loss, label='test')
+    plt.legend()
+    plt.show()
+    # fig, ax = plt.subplots(1,2, figsize=(8,3))
+    # for l in [10e-7, 10e-5, 10e-3, 10e-1, 1, 10, 100]:
+    train_losses, test_losses = [], []
+    for l in [0.01, 0.5, 0.1]:
+        theta_hist, train_loss_hist = regularized_grad_descent(X_train, y_train, alpha=0.01, lambda_reg=l)
+        tlindex = np.argmin(train_loss_hist)
+        best_train_loss = train_loss_hist[tlindex]
+        best_theta = theta_hist[tlindex]
+        test_loss = compute_square_loss(X_test, y_test, best_theta)
+        train_losses.append(best_train_loss)
+        test_losses.append(test_loss)
+    plt.plot([0.01, 0.5, 0.1], train_losses, 'x', label='train')
+    plt.plot([0.01, 0.5, 0.1], test_losses, 'x', label='test')
+    plt.legend()
+    plt.ylabel("squared loss")
+    plt.xlabel("lambda value")
+    plt.xscale("log")
+    plt.show()
+    # plt.savefig("imgs/reg_grad_descent_lambda_search.png")
+    # plt.close()
+
+
+    #     ax[0].plot(best_train_loss, 'o',label=l)
+    #     ax[0].set_title("train loss")
+    #     ax[1].plot(test_loss, 'o', label=l)
+    #     ax[1].set_title("test loss")
+    # ax[0].legend()
+    # ax[1].legend()
+    # # ax[0].set_yscale("log")
+    # # ax[1].set_yscale("log")
+    # ax[0].set_ylabel("squared loss")
+    # ax[0].set_xlabel("iteration")
+    # plt.show()
+    # plt.savefig("imgs/batch_grad_descent_loss.png")
+    # plt.close()
 
 if __name__ == "__main__":
     main()
