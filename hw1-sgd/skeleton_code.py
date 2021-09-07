@@ -352,22 +352,28 @@ def stochastic_grad_descent(X, y, alpha=0.1, lambda_reg=1, num_iter=1000):
     theta = np.ones(num_features) #Initialize theta
     theta_hist = np.zeros((num_iter, num_instances, num_features))  #Initialize theta_hist
     loss_hist = np.zeros((num_iter, num_instances)) #Initialize loss_hist
+    eta0 = 0.05
+    if isinstance(alpha, float) or alpha == "1/sqrt(t)":
+        a = 1/np.sqrt(eta0)
+    elif alpha == "1/t":
+        a = 1/eta0
     #TODO
-    theta_hist[0, :, :] = theta
-    init_loss = compute_square_loss(X, y, theta)
-    reg_loss = np.sum(np.square(init_loss))
-    loss_hist[0, :] = init_loss + lambda_reg * reg_loss
-    # shuffle X and y
-    Xs, ys = shuffle(X, y, random_state=10)
+    indices = np.arange(num_instances)
     for i in range(num_iter):
         # theta_hist[i] = theta
-        for j, data in enumerate(zip(Xs,ys)):
-            x, y = data[0], data[1]
-            cur_theta = theta_hist[i, j, :]
-            grad = compute_regularized_square_loss_gradient(x, y, cur_theta, reg_loss)
-            theta_hist[i, j+1, :] = cur_theta - alpha * grad
-            loss = compute_square_loss(x, y, theta_hist[i, j, :])
-            loss_hist[i, j+1] = loss
+        np.random.shuffle(indices)
+        for j, index in enumerate(indices):
+            x = X[index, :]
+            pred = x.T@theta
+            # pred = np.dot(theta, x)
+            loss = pred - y[index]
+            grad = 2 * (x.T*loss + lambda_reg * theta)
+            theta -= a * grad
+            theta_hist[i, j, :] = theta
+            # compute loss on entire dataset
+            data_loss = compute_square_loss(X, y, theta)
+            reg_loss = np.sum(np.square(theta))
+            loss_hist[i, j] = data_loss + lambda_reg * reg_loss
     return theta_hist, loss_hist
 
 
