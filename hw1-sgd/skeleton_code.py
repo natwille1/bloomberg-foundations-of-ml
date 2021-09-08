@@ -353,16 +353,20 @@ def stochastic_grad_descent(X, y, alpha=0.1, lambda_reg=1, num_iter=1000):
     theta_hist = np.zeros((num_iter, num_instances, num_features))  #Initialize theta_hist
     loss_hist = np.zeros((num_iter, num_instances)) #Initialize loss_hist
     eta0 = 0.05
-    if isinstance(alpha, float) or alpha == "1/sqrt(t)":
-        a = 1/np.sqrt(eta0)
+    if isinstance(alpha, float):
+        alpha_func = lambda x: alpha
     elif alpha == "1/t":
-        a = 1/eta0
+        alpha_func = lambda x: 1/x
+    elif alpha == "1/sqrt(t)":
+        alpha_func = lambda x: 1/np.sqrt(x)
     #TODO
+    cnt = 1
     indices = np.arange(num_instances)
     for i in range(num_iter):
         # theta_hist[i] = theta
         np.random.shuffle(indices)
         for j, index in enumerate(indices):
+            a = alpha_func(cnt)
             x = X[index, :]
             pred = x.T@theta
             # pred = np.dot(theta, x)
@@ -374,6 +378,7 @@ def stochastic_grad_descent(X, y, alpha=0.1, lambda_reg=1, num_iter=1000):
             data_loss = compute_square_loss(X, y, theta)
             reg_loss = np.sum(np.square(theta))
             loss_hist[i, j] = data_loss + lambda_reg * reg_loss
+            cnt += 1
     return theta_hist, loss_hist
 
 
@@ -439,13 +444,21 @@ def main():
     X_test = np.hstack((X_test, np.ones((X_test.shape[0], 1)))) # Add bias term
 
     # TODO
-    theta_hist, loss_hist, stepsize_hist = backtracking_line_search(X_train, y_train, num_iter=1000)
+    # theta_hist, loss_hist, stepsize_hist = backtracking_line_search(X_train, y_train, num_iter=1000)
     # plt.title("backtracking_line_search")
-    plt.plot(loss_hist, label="backtracking")
-    theta_hist, loss_hist = stochastic_grad_descent(X_train, y_train)
-    plt.plot(theta_hist[0])
-    plt.show()
+    # plt.plot(loss_hist, label="backtracking")
+    # theta_hist, loss_hist = stochastic_grad_descent(X_train, y_train, alpha=0.01, lambda_reg=1)
+    # plt.plot(loss_hist)
+    # plt.yscale("log")
+    # plt.title(f"alpha {0.01}")
+    # plt.savefig("imgs/reg_sgd_reg_1_alpha_0.01.png")
     # plt.show()
+    theta_hist, loss_hist = stochastic_grad_descent(X_train, y_train, alpha="1/sqrt(t)", lambda_reg=1)
+    plt.plot(loss_hist)
+    plt.yscale("log")
+    plt.title(f"alpha 1/sqrt(t)")
+    plt.savefig("imgs/reg_sgd_reg_1_alpha_1sqrtt.png")
+    plt.show()
     # fig, ax = plt.subplots(1,2, figsize=(8,3))
     # for l in [10e-7, 10e-5, 10e-3, 10e-1, 1, 10, 100]:
     # plt.savefig("imgs/reg_grad_descent_lambda_search.png")
